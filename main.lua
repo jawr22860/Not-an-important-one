@@ -1,8 +1,7 @@
 
--- MMV RECOLOR SCOPE
--- Remade GUI by: Jawrrr
--- Pastel Yellow Edition
--- 45 STYLES TOTAL
+-- MMV Recolor Scope — Black/Purple Edition
+-- Updated by: Jawrrr
+-- Client-side visual script. Use only where permitted.
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -12,7 +11,7 @@ local PlayerGui = player:WaitForChild("PlayerGui")
 
 local GUN_TOOL_NAME = "Gun"
 
--- TARGETS
+-- Detect both scopes and GunDisplay objects
 local TARGET_NAMES = {
     GunDisplay = true,
     MatrixScope = true,
@@ -27,6 +26,7 @@ local VOIDSCOPE_TEXTURE_ID = "rbxassetid://119603354495392"
 local ROSESCOPE_TEXTURE_ID = "rbxassetid://102809990017058"
 local WHITESCOPE_TEXTURE_ID = "rbxassetid://87412774611144"
 
+-- INDIVIDUAL COLOR TEXTURES
 local YELLOW_TEXTURE_ID = "rbxassetid://93795820856629"
 local MINT_TEXTURE_ID = "rbxassetid://125134794312287"
 local ORANGE_TEXTURE_ID = "rbxassetid://105138266693343"
@@ -38,13 +38,14 @@ local GOLD_TEXTURE_ID = "rbxassetid://98592687867961"
 local GRAY_TEXTURE_ID = "rbxassetid://128114825439511"
 local NEON_PURPLE_TEXTURE_ID = "rbxassetid://123877165198496"
 
+-- STARSCOPE TEXTURES
 local STARSCOPE_TEXTURE_ID = "rbxassetid://132065259622013"
 local STARSCOPE_VIOLET_TEXTURE_ID = "rbxassetid://97204233483116"
 local PINK_STARSCOPE_TEXTURE_ID = "rbxassetid://83357177609156"
 local PASTELBROWN_STARSCOPE_TEXTURE_ID = "rbxassetid://136763276707143"
 local PASTELBROWN_POLKA_TEXTURE_ID = "rbxassetid://133416165666330"
 
--- NEW JAWRRR TEXTURES
+-- NEW TEXTURES
 local BELLSCOPE_TEXTURE_ID = "rbxassetid://96035691811143"
 local REDSNOWFLAKE_TEXTURE_ID = "rbxassetid://139541788083071"
 local SNOWFLAKE_TEXTURE_ID = "rbxassetid://89433726900538"
@@ -68,29 +69,173 @@ local PASTELPURPLE_CREATOR_TEXTURE_ID = "rbxassetid://135601043956623"
 local PURPLE_CREATOR_TEXTURE_ID = "rbxassetid://115794159216362"
 local PASTELYELLOW_CREATOR_TEXTURE_ID = "rbxassetid://134142528421803"
 
--- PASTEL YELLOW THEME
-local YELLOW = Color3.fromRGB(255, 239, 160)
-local YELLOW_DARK = Color3.fromRGB(235, 207, 105)
-local YELLOW_LIGHT = Color3.fromRGB(255, 248, 205)
-local WHITE = Color3.fromRGB(255, 255, 255)
-local BLACK = Color3.fromRGB(25, 25, 25)
+-- THEME
+local BLACK = Color3.fromRGB(8, 7, 13)
+local BLACK_PANEL = Color3.fromRGB(15, 12, 23)
+local PURPLE = Color3.fromRGB(145, 65, 220)
+local PURPLE_DARK = Color3.fromRGB(75, 32, 120)
+local PURPLE_LIGHT = Color3.fromRGB(190, 135, 255)
+local WHITE = Color3.fromRGB(245, 240, 255)
 
--- SETTINGS
 local CURRENT_STYLE = "Normal"
-local TEXTURE_ID
-local BEAM_COLOR
+local TEXTURE_ID, BEAM_COLOR
 
-local selectedStyle = nil
+local equippedGun
+local originalGunProperties = {}
+local originalDisplayProperties = {}
+local connectedTools = {}
 local status
 
-local originalProperties = {}
-local appliedDisplay = nil
+-- SAVE / RESTORE
+local function saveProperty(store, object, property)
+    if not store[object] then
+        store[object] = {}
+    end
 
--- ALL 45 STYLES
+    if store[object][property] == nil then
+        local ok, value = pcall(function()
+            return object[property]
+        end)
+
+        if ok then
+            store[object][property] = value
+        end
+    end
+end
+
+local function setSaved(store, object, property, value)
+    pcall(function()
+        saveProperty(store, object, property)
+        object[property] = value
+    end)
+end
+
+local function restoreStore(store)
+    for object, properties in pairs(store) do
+        if object and object.Parent then
+            for property, value in pairs(properties) do
+                pcall(function()
+                    object[property] = value
+                end)
+            end
+        end
+    end
+
+    table.clear(store)
+end
+
+local function restoreGun(tool)
+    restoreStore(originalGunProperties)
+
+    if not tool or equippedGun == tool then
+        equippedGun = nil
+    end
+end
+
+local function restoreDisplay()
+    restoreStore(originalDisplayProperties)
+end
+
+-- BEAM COLORS
+local function applyBeam(object, store)
+    if not (object:IsA("Beam") or object:IsA("Trail")) then
+        return
+    end
+
+    if CURRENT_STYLE == "GhostScope" then
+        setSaved(store, object, "Color", ColorSequence.new(WHITE))
+        setSaved(store, object, "Transparency", NumberSequence.new(0.5))
+
+    elseif CURRENT_STYLE == "VoidScope" then
+        setSaved(store, object, "Color", ColorSequence.new({
+            ColorSequenceKeypoint.new(0, WHITE),
+            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(170,170,170)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0)),
+        }))
+
+    elseif BEAM_COLOR then
+        setSaved(store, object, "Color", ColorSequence.new(BEAM_COLOR))
+    end
+end
+
+-- CHECK VISUAL CHILDREN
+local function hasVisualChild(part)
+    for _, child in ipairs(part:GetChildren()) do
+        if child:IsA("SpecialMesh")
+        or child:IsA("Decal")
+        or child:IsA("Texture") then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- APPLY COLORS AND TEXTURES
+local function applyObject(object, store)
+    if CURRENT_STYLE == "GhostScope" then
+        if object:IsA("MeshPart") then
+            setSaved(store, object, "Color", WHITE)
+            setSaved(store, object, "Transparency", 0.5)
+            setSaved(store, object, "TextureID", "")
+
+        elseif object:IsA("BasePart") then
+            setSaved(store, object, "Color", WHITE)
+            setSaved(store, object, "Transparency", 0.5)
+
+        elseif object:IsA("SpecialMesh") then
+            setSaved(store, object, "TextureId", "")
+            setSaved(store, object, "VertexColor", Vector3.new(1,1,1))
+
+            local parent = object.Parent
+            if parent and parent:IsA("BasePart") then
+                setSaved(store, parent, "Color", WHITE)
+                setSaved(store, parent, "Transparency", 0.5)
+            end
+
+        elseif object:IsA("Decal") or object:IsA("Texture") then
+            setSaved(store, object, "Transparency", 1)
+
+        elseif object:IsA("Beam") or object:IsA("Trail") then
+            applyBeam(object, store)
+        end
+
+        return
+    end
+
+    if TEXTURE_ID then
+        if object:IsA("MeshPart") then
+            setSaved(store, object, "TextureID", TEXTURE_ID)
+
+        elseif object:IsA("SpecialMesh") then
+            setSaved(store, object, "TextureId", TEXTURE_ID)
+            setSaved(store, object, "VertexColor", Vector3.new(1,1,1))
+
+        elseif object:IsA("Decal") or object:IsA("Texture") then
+            setSaved(store, object, "Texture", TEXTURE_ID)
+            setSaved(store, object, "Color3", WHITE)
+
+        elseif object:IsA("BasePart") then
+            if hasVisualChild(object) then
+                setSaved(store, object, "Color", WHITE)
+            end
+
+        elseif object:IsA("Beam") or object:IsA("Trail") then
+            applyBeam(object, store)
+        end
+
+        return
+    end
+
+    if object:IsA("Beam") or object:IsA("Trail") then
+        applyBeam(object, store)
+    end
+end
+
+-- ALL STYLES
 local Styles = {
     {Name="Normal"},
 
-    -- ORIGINAL SCOPES
     {Name="RedScope", Texture=RED_TEXTURE_ID, Beam=Color3.fromRGB(170,0,0)},
     {Name="BlueScope", Texture=BLUE_TEXTURE_ID, Beam=Color3.fromRGB(20,45,110)},
     {Name="Purple", Texture=PURPLE_TEXTURE_ID, Beam=Color3.fromRGB(115,35,170)},
@@ -99,7 +244,7 @@ local Styles = {
     {Name="WhiteScope", Texture=WHITESCOPE_TEXTURE_ID, Beam=WHITE},
     {Name="GhostScope", Ghost=true, Beam=WHITE},
 
-    -- ORIGINAL COLOR SCOPES
+    -- INDIVIDUAL TEXTURES
     {Name="Cyan", Texture=CYAN_TEXTURE_ID, Beam=Color3.fromRGB(0,172,181)},
     {Name="Lime", Texture=LIME_TEXTURE_ID, Beam=Color3.fromRGB(77,121,32)},
     {Name="Yellow", Texture=YELLOW_TEXTURE_ID, Beam=Color3.fromRGB(240,211,109)},
@@ -111,14 +256,14 @@ local Styles = {
     {Name="Gray", Texture=GRAY_TEXTURE_ID, Beam=Color3.fromRGB(44,45,49)},
     {Name="Gold", Texture=GOLD_TEXTURE_ID, Beam=Color3.fromRGB(239,182,93)},
 
-    -- ORIGINAL STAR SCOPES
+    -- STARSCOPE TEXTURES
     {Name="Starscope", Texture=STARSCOPE_TEXTURE_ID, Beam=Color3.fromRGB(0,0,0)},
     {Name="Starscope violet", Texture=STARSCOPE_VIOLET_TEXTURE_ID, Beam=Color3.fromRGB(0,0,0)},
     {Name="Pink starscope", Texture=PINK_STARSCOPE_TEXTURE_ID, Beam=Color3.fromRGB(240,221,225)},
     {Name="Pastelbrown starscope", Texture=PASTELBROWN_STARSCOPE_TEXTURE_ID, Beam=Color3.fromRGB(234,212,188)},
     {Name="Pastelbrown polka", Texture=PASTELBROWN_POLKA_TEXTURE_ID, Beam=Color3.fromRGB(234,212,188)},
 
-    -- NEW JAWRRR SCOPES
+    -- NEW CHRISTMAS, FADE, BEACH AND CREATOR STYLES
     {Name="Bellscope", Texture=BELLSCOPE_TEXTURE_ID, Beam=Color3.fromRGB(255,255,255)},
     {Name="Redsnowflakescope", Texture=REDSNOWFLAKE_TEXTURE_ID, Beam=Color3.fromRGB(99,19,30)},
     {Name="Snowflakescope", Texture=SNOWFLAKE_TEXTURE_ID, Beam=Color3.fromRGB(255,255,255)},
@@ -143,538 +288,316 @@ local Styles = {
     {Name="Pastelyellow creatorscope", Texture=PASTELYELLOW_CREATOR_TEXTURE_ID, Beam=Color3.fromRGB(245,237,154)},
 }
 
--- SAVE ORIGINAL PROPERTIES
-local function saveProperty(object, property)
-    if not originalProperties[object] then
-        originalProperties[object] = {}
-    end
-
-    if originalProperties[object][property] == nil then
-        local success, value = pcall(function()
-            return object[property]
-        end)
-
-        if success then
-            originalProperties[object][property] = value
-        end
-    end
-end
-
-local function setSaved(object, property, value)
-    pcall(function()
-        saveProperty(object, property)
-        object[property] = value
-    end)
-end
-
-local function restoreOriginal()
-    for object, properties in pairs(originalProperties) do
-        if object and object.Parent then
-            for property, value in pairs(properties) do
-                pcall(function()
-                    object[property] = value
-                end)
-            end
-        end
-    end
-
-    table.clear(originalProperties)
-    appliedDisplay = nil
-end
-
--- VISUAL CHILDREN
-local function hasVisualChild(part)
-    for _, child in ipairs(part:GetChildren()) do
-        if child:IsA("SpecialMesh")
-        or child:IsA("Decal")
-        or child:IsA("Texture") then
-            return true
-        end
-    end
-
-    return false
-end
-
--- BEAM AND TRAIL
-local function applyBeam(object)
-    if not (object:IsA("Beam") or object:IsA("Trail")) then
-        return
-    end
-
-    if CURRENT_STYLE == "GhostScope" then
-        setSaved(object, "Color", ColorSequence.new(WHITE))
-        setSaved(object, "Transparency", NumberSequence.new(0.5))
-
-    elseif CURRENT_STYLE == "VoidScope" then
-        setSaved(object, "Color", ColorSequence.new({
-            ColorSequenceKeypoint.new(0, WHITE),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(170,170,170)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,0)),
-        }))
-
-    elseif BEAM_COLOR then
-        setSaved(object, "Color", ColorSequence.new(BEAM_COLOR))
-    end
-end
-
--- APPLY TEXTURE
-local function applyObject(object)
-
-    if CURRENT_STYLE == "GhostScope" then
-
-        if object:IsA("MeshPart") then
-            setSaved(object, "Color", WHITE)
-            setSaved(object, "Transparency", 0.5)
-            setSaved(object, "TextureID", "")
-
-        elseif object:IsA("BasePart") then
-            setSaved(object, "Color", WHITE)
-            setSaved(object, "Transparency", 0.5)
-
-        elseif object:IsA("SpecialMesh") then
-            setSaved(object, "TextureId", "")
-            setSaved(object, "VertexColor", Vector3.new(1,1,1))
-
-        elseif object:IsA("Decal") or object:IsA("Texture") then
-            setSaved(object, "Transparency", 1)
-
-        elseif object:IsA("Beam") or object:IsA("Trail") then
-            applyBeam(object)
-        end
-
-        return
-    end
-
-    if TEXTURE_ID then
-
-        if object:IsA("MeshPart") then
-            setSaved(object, "TextureID", TEXTURE_ID)
-
-        elseif object:IsA("SpecialMesh") then
-            setSaved(object, "TextureId", TEXTURE_ID)
-            setSaved(object, "VertexColor", Vector3.new(1,1,1))
-
-        elseif object:IsA("Decal") or object:IsA("Texture") then
-            setSaved(object, "Texture", TEXTURE_ID)
-            setSaved(object, "Color3", WHITE)
-
-        elseif object:IsA("BasePart") then
-            if hasVisualChild(object) then
-                setSaved(object, "Color", WHITE)
-            end
-
-        elseif object:IsA("Beam") or object:IsA("Trail") then
-            applyBeam(object)
-        end
-
-        return
-    end
-
-    if object:IsA("Beam") or object:IsA("Trail") then
-        applyBeam(object)
-    end
-end
-
--- FIND NEAREST GUN DISPLAY
-local function getObjectPosition(object)
-    if object:IsA("BasePart") then
-        return object.Position
-    end
-
-    local part = object:FindFirstChildWhichIsA("BasePart", true)
-
-    if part then
-        return part.Position
-    end
-
-    return nil
-end
-
-local function findNearestDisplay()
-    local character = player.Character
-
-    if not character then
-        return nil
-    end
-
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-
-    if not rootPart then
-        return nil
-    end
-
-    local nearest = nil
-    local shortestDistance = math.huge
+-- FIND ALL SCOPE DISPLAYS
+local function findAllGunDisplays()
+    local displays = {}
 
     for _, object in ipairs(workspace:GetDescendants()) do
         if TARGET_NAMES[object.Name] then
-
-            local position = getObjectPosition(object)
-
-            if position then
-                local distance = (rootPart.Position - position).Magnitude
-
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    nearest = object
-                end
-            end
+            table.insert(displays, object)
         end
     end
 
-    return nearest, shortestDistance
+    return displays
 end
 
--- APPLY TO NEAREST GUN DISPLAY
-local function applyNearestGun()
-
-    if not selectedStyle then
-        status.Text = "Select a style first!"
+-- APPLY TO ONE DISPLAY
+local function applyToDisplay(root)
+    if not root or not root.Parent then
         return
     end
 
-    local nearest, distance = findNearestDisplay()
+    applyObject(root, originalDisplayProperties)
 
-    if not nearest then
-        status.Text = "No GunDisplay found!"
+    for _, object in ipairs(root:GetDescendants()) do
+        applyObject(object, originalDisplayProperties)
+    end
+end
+
+-- APPLY TO BOTH SCOPES
+local function applyToAllDisplays()
+    for _, display in ipairs(findAllGunDisplays()) do
+        applyToDisplay(display)
+    end
+end
+
+-- APPLY TO GUN TOOL
+local function applyToGun(tool)
+    if not tool or not tool:IsA("Tool") or tool.Name ~= GUN_TOOL_NAME then
         return
     end
 
-    restoreOriginal()
+    equippedGun = tool
 
-    CURRENT_STYLE = selectedStyle.Name
-    TEXTURE_ID = selectedStyle.Texture
-    BEAM_COLOR = selectedStyle.Beam
+    applyObject(tool, originalGunProperties)
+
+    for _, object in ipairs(tool:GetDescendants()) do
+        applyObject(object, originalGunProperties)
+    end
+end
+
+-- STYLE SELECTION
+local function selectStyle(styleName)
+    local selected
+
+    for _, style in ipairs(Styles) do
+        if style.Name == styleName then
+            selected = style
+            break
+        end
+    end
+
+    if not selected then
+        return
+    end
+
+    local gunToReapply = equippedGun
+
+    restoreDisplay()
+
+    if equippedGun then
+        restoreGun(equippedGun)
+    end
+
+    CURRENT_STYLE = selected.Name
+    TEXTURE_ID = selected.Texture
+    BEAM_COLOR = selected.Beam
+
+    status.Text = "Style: " .. CURRENT_STYLE
 
     if CURRENT_STYLE == "Normal" then
-        status.Text = "Normal style selected."
         return
     end
 
-    appliedDisplay = nearest
+    applyToAllDisplays()
 
-    applyObject(nearest)
-
-    for _, object in ipairs(nearest:GetDescendants()) do
-        applyObject(object)
+    if gunToReapply and gunToReapply.Parent then
+        applyToGun(gunToReapply)
     end
-
-    status.Text = selectedStyle.Name .. " applied! " ..
-        math.floor(distance) .. " studs away."
 end
 
--- RESET
-local function resetStyle()
-    restoreOriginal()
-
-    CURRENT_STYLE = "Normal"
-    TEXTURE_ID = nil
-    BEAM_COLOR = nil
-    selectedStyle = Styles[1]
-
-    status.Text = "Reset to Normal!"
-end
-
--- REMOVE OLD GUI
+-- REMOVE OLD PANEL
 local oldGui = PlayerGui:FindFirstChild("MatrixVoidPanel")
-
 if oldGui then
     oldGui:Destroy()
 end
 
--- SCREEN GUI
+-- MAIN GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MatrixVoidPanel"
 screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.IgnoreGuiInset = true
 screenGui.DisplayOrder = 999
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Enabled = true
 screenGui.Parent = PlayerGui
 
--- MAIN FRAME
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 300, 0, 285)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -142)
-mainFrame.BackgroundColor3 = YELLOW_LIGHT
+mainFrame.Size = UDim2.new(0,260,0,390)
+mainFrame.Position = UDim2.new(0.5,-130,0.4,-195)
+mainFrame.BackgroundColor3 = BLACK
+mainFrame.BackgroundTransparency = 0.05
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = true
+mainFrame.Visible = true
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
 
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 18)
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0,16)
 
 local mainStroke = Instance.new("UIStroke", mainFrame)
-mainStroke.Color = YELLOW_DARK
-mainStroke.Thickness = 2
+mainStroke.Color = PURPLE
+mainStroke.Thickness = 2.5
 
--- TITLE BAR
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, -16, 0, 48)
-titleBar.Position = UDim2.new(0, 8, 0, 8)
-titleBar.BackgroundColor3 = YELLOW
+titleBar.Size = UDim2.new(1,0,0,35)
+titleBar.BackgroundColor3 = BLACK_PANEL
 titleBar.BorderSizePixel = 0
 titleBar.Active = true
 titleBar.Parent = mainFrame
 
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 13)
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0,16)
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -55, 1, 0)
-title.Position = UDim2.new(0, 13, 0, 0)
-title.BackgroundTransparency = 1
-title.Text = "JAWRRR"
-title.TextColor3 = BLACK
-title.TextSize = 18
-title.Font = Enum.Font.GothamBold
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = titleBar
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1,-35,1,0)
+titleLabel.Position = UDim2.new(0,10,0,0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "By:Jawrrr"
+titleLabel.TextColor3 = PURPLE_LIGHT
+titleLabel.TextSize = 13
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
 
-local subtitle = Instance.new("TextLabel")
-subtitle.Size = UDim2.new(1, -55, 0, 12)
-subtitle.Position = UDim2.new(0, 13, 1, -14)
-subtitle.BackgroundTransparency = 1
-subtitle.Text = "GUN CUSTOMIZER"
-subtitle.TextColor3 = BLACK
-subtitle.TextSize = 8
-subtitle.Font = Enum.Font.Gotham
-subtitle.TextXAlignment = Enum.TextXAlignment.Left
-subtitle.Parent = titleBar
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0,22,0,22)
+minimizeBtn.Position = UDim2.new(1,-28,0,6)
+minimizeBtn.BackgroundColor3 = PURPLE_DARK
+minimizeBtn.Text = "-"
+minimizeBtn.TextColor3 = WHITE
+minimizeBtn.TextSize = 16
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.BorderSizePixel = 0
+minimizeBtn.Parent = titleBar
 
--- CLOSE BUTTON
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -38, 0, 9)
-closeBtn.BackgroundColor3 = WHITE
-closeBtn.Text = "×"
-closeBtn.TextColor3 = BLACK
-closeBtn.TextSize = 20
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.BorderSizePixel = 0
-closeBtn.Parent = titleBar
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(1,0)
 
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1,-24,1,-65)
+contentFrame.Position = UDim2.new(0,12,0,38)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
 
--- BUTTON CREATOR
-local function createButton(text, parent, height)
+local listLayout = Instance.new("UIListLayout", contentFrame)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0,8)
 
+-- CREATE BUTTON
+local function createButton(text)
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 0, height or 40)
-    button.BackgroundColor3 = WHITE
+    button.Size = UDim2.new(1,0,0,30)
+    button.BackgroundColor3 = BLACK_PANEL
+    button.BackgroundTransparency = 0
     button.Text = text
-    button.TextColor3 = BLACK
+    button.TextColor3 = WHITE
     button.TextSize = 12
     button.Font = Enum.Font.GothamBold
     button.BorderSizePixel = 0
-    button.AutoButtonColor = true
-    button.Parent = parent
 
-    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0,12)
 
     local stroke = Instance.new("UIStroke", button)
-    stroke.Color = YELLOW_DARK
-    stroke.Thickness = 1.2
+    stroke.Color = PURPLE_DARK
+    stroke.Thickness = 1.5
 
     return button
 end
 
--- CURRENT STYLE LABEL
-local currentLabel = Instance.new("TextLabel")
-currentLabel.Size = UDim2.new(1, -28, 0, 28)
-currentLabel.Position = UDim2.new(0, 14, 0, 66)
-currentLabel.BackgroundTransparency = 1
-currentLabel.Text = "CURRENT STYLE: NORMAL"
-currentLabel.TextColor3 = BLACK
-currentLabel.TextSize = 11
-currentLabel.Font = Enum.Font.GothamBold
-currentLabel.TextXAlignment = Enum.TextXAlignment.Left
-currentLabel.Parent = mainFrame
+local btnMatrix = createButton("MATRIXSCOPE: ON")
+btnMatrix.LayoutOrder = 1
+btnMatrix.Parent = contentFrame
 
--- SELECT STYLE
-local selectButton = createButton(
-    "SELECT STYLE  ▼",
-    mainFrame,
-    38
-)
+local btnVoid = createButton("VOIDSCOPE: ON")
+btnVoid.LayoutOrder = 2
+btnVoid.Parent = contentFrame
 
-selectButton.Position = UDim2.new(0, 14, 0, 96)
-selectButton.Size = UDim2.new(1, -28, 0, 38)
+local texturesLabel = Instance.new("TextLabel")
+texturesLabel.Size = UDim2.new(1,0,0,18)
+texturesLabel.BackgroundTransparency = 1
+texturesLabel.Text = "TEXTURES + COLORS"
+texturesLabel.TextColor3 = PURPLE_LIGHT
+texturesLabel.TextSize = 12
+texturesLabel.Font = Enum.Font.GothamBold
+texturesLabel.TextXAlignment = Enum.TextXAlignment.Left
+texturesLabel.LayoutOrder = 3
+texturesLabel.Parent = contentFrame
 
--- APPLY BUTTON
-local applyButton = createButton(
-    "APPLY TO NEAREST GUNDISPLAY",
-    mainFrame,
-    38
-)
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1,0,0,170)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 4
+scrollFrame.ScrollBarImageColor3 = PURPLE
+scrollFrame.CanvasSize = UDim2.new(0,0,0,0)
+scrollFrame.LayoutOrder = 4
+scrollFrame.Parent = contentFrame
 
-applyButton.Position = UDim2.new(0, 14, 0, 145)
-applyButton.Size = UDim2.new(1, -28, 0, 38)
+local scrollLayout = Instance.new("UIListLayout", scrollFrame)
+scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+scrollLayout.Padding = UDim.new(0,6)
 
--- RESET BUTTON
-local resetButton = createButton(
-    "RESET TO NORMAL",
-    mainFrame,
-    34
-)
-
-resetButton.Position = UDim2.new(0, 14, 0, 192)
-resetButton.Size = UDim2.new(1, -28, 0, 34)
-
--- STATUS
-status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -20, 0, 22)
-status.Position = UDim2.new(0, 10, 0, 237)
-status.BackgroundTransparency = 1
-status.Text = "Select a style."
-status.TextColor3 = BLACK
-status.TextSize = 10
-status.Font = Enum.Font.Gotham
-status.TextWrapped = true
-status.Parent = mainFrame
-
--- STYLE SELECTION WINDOW
-local styleWindow = Instance.new("Frame")
-styleWindow.Name = "StyleWindow"
-styleWindow.Size = UDim2.new(0, 235, 0, 245)
-styleWindow.Position = UDim2.new(0.5, -117, 0.5, -122)
-styleWindow.BackgroundColor3 = YELLOW_LIGHT
-styleWindow.BorderSizePixel = 0
-styleWindow.Visible = false
-styleWindow.ZIndex = 10
-styleWindow.Parent = screenGui
-
-Instance.new("UICorner", styleWindow).CornerRadius = UDim.new(0, 15)
-
-local windowStroke = Instance.new("UIStroke", styleWindow)
-windowStroke.Color = YELLOW_DARK
-windowStroke.Thickness = 2
-
-local windowTitle = Instance.new("TextLabel")
-windowTitle.Size = UDim2.new(1, -45, 0, 35)
-windowTitle.Position = UDim2.new(0, 12, 0, 0)
-windowTitle.BackgroundTransparency = 1
-windowTitle.Text = "SELECT STYLE"
-windowTitle.TextColor3 = BLACK
-windowTitle.TextSize = 13
-windowTitle.Font = Enum.Font.GothamBold
-windowTitle.TextXAlignment = Enum.TextXAlignment.Left
-windowTitle.ZIndex = 11
-windowTitle.Parent = styleWindow
-
-local windowClose = Instance.new("TextButton")
-windowClose.Size = UDim2.new(0, 25, 0, 25)
-windowClose.Position = UDim2.new(1, -32, 0, 5)
-windowClose.BackgroundColor3 = WHITE
-windowClose.Text = "×"
-windowClose.TextColor3 = BLACK
-windowClose.TextSize = 17
-windowClose.Font = Enum.Font.GothamBold
-windowClose.BorderSizePixel = 0
-windowClose.ZIndex = 11
-windowClose.Parent = styleWindow
-
-Instance.new("UICorner", windowClose).CornerRadius = UDim.new(1, 0)
-
--- SCROLLABLE STYLE LIST
-local styleScroll = Instance.new("ScrollingFrame")
-styleScroll.Size = UDim2.new(1, -20, 1, -48)
-styleScroll.Position = UDim2.new(0, 10, 0, 40)
-styleScroll.BackgroundTransparency = 1
-styleScroll.BorderSizePixel = 0
-styleScroll.ScrollBarThickness = 4
-styleScroll.ScrollBarImageColor3 = YELLOW_DARK
-styleScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-styleScroll.ZIndex = 11
-styleScroll.Parent = styleWindow
-
-local styleLayout = Instance.new("UIListLayout")
-styleLayout.SortOrder = Enum.SortOrder.LayoutOrder
-styleLayout.Padding = UDim.new(0, 6)
-styleLayout.Parent = styleScroll
-
-styleLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    styleScroll.CanvasSize = UDim2.new(
-        0, 0, 0, styleLayout.AbsoluteContentSize.Y + 8
+scrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scrollFrame.CanvasSize = UDim2.new(
+        0,0,0,scrollLayout.AbsoluteContentSize.Y+5
     )
 end)
 
--- CREATE ALL STYLE BUTTONS
+status = Instance.new("TextLabel")
+status.Size = UDim2.new(1,0,0,18)
+status.BackgroundTransparency = 1
+status.Text = "Ready."
+status.TextColor3 = PURPLE_LIGHT
+status.TextSize = 10
+status.Font = Enum.Font.Gotham
+status.LayoutOrder = 5
+status.Parent = contentFrame
+
+-- AUTOMATIC STYLE BUTTONS
 for index, style in ipairs(Styles) do
+    local button = createButton(string.upper(style.Name))
+    button.LayoutOrder = index
+    button.Parent = scrollFrame
 
-    local styleButton = createButton(
-        string.upper(style.Name),
-        styleScroll,
-        31
-    )
-
-    styleButton.LayoutOrder = index
-    styleButton.ZIndex = 12
-
-    styleButton.MouseButton1Click:Connect(function()
-
-        selectedStyle = style
-
-        currentLabel.Text = "CURRENT STYLE: " .. string.upper(style.Name)
-        status.Text = style.Name .. " selected."
-
-        styleWindow.Visible = false
-
+    button.MouseButton1Click:Connect(function()
+        selectStyle(style.Name)
     end)
 end
 
--- BUTTON EVENTS
-selectButton.MouseButton1Click:Connect(function()
-    styleWindow.Visible = not styleWindow.Visible
-end)
+local footerLabel = Instance.new("TextLabel")
+footerLabel.Size = UDim2.new(1,0,0,20)
+footerLabel.Position = UDim2.new(0,0,1,-22)
+footerLabel.BackgroundTransparency = 1
+footerLabel.Text = "MMV RECOLOR SCOPE • BLACK / PURPLE"
+footerLabel.TextColor3 = PURPLE_LIGHT
+footerLabel.TextSize = 9
+footerLabel.Font = Enum.Font.GothamBold
+footerLabel.Parent = mainFrame
 
-windowClose.MouseButton1Click:Connect(function()
-    styleWindow.Visible = false
-end)
-
-applyButton.MouseButton1Click:Connect(function()
-    applyNearestGun()
-end)
-
-resetButton.MouseButton1Click:Connect(function()
-    resetStyle()
-    currentLabel.Text = "CURRENT STYLE: NORMAL"
-end)
-
--- MINIMIZE CIRCLE
+-- MINIMIZE BALL WITH CENTERED "Jawrr" TEXT
 local ballBtn = Instance.new("TextButton")
-ballBtn.Name = "JawrrMinimize"
-ballBtn.Size = UDim2.new(0, 52, 0, 52)
-ballBtn.Position = UDim2.new(0.5, -26, 0.5, -26)
-ballBtn.BackgroundColor3 = YELLOW
+ballBtn.Name = "MinimizeBall"
+ballBtn.Size = UDim2.new(0,50,0,50)
+ballBtn.Position = mainFrame.Position
+ballBtn.BackgroundColor3 = Color3.fromRGB(0,0,0)
+ballBtn.BackgroundTransparency = 0
 ballBtn.Text = "Jawrr"
-ballBtn.TextColor3 = BLACK
+ballBtn.TextColor3 = PURPLE_LIGHT
 ballBtn.TextSize = 12
+ballBtn.TextScaled = true
 ballBtn.Font = Enum.Font.GothamBold
-ballBtn.BorderSizePixel = 0
-ballBtn.Visible = false
+ballBtn.TextXAlignment = Enum.TextXAlignment.Center
+ballBtn.TextYAlignment = Enum.TextYAlignment.Center
+ballBtn.TextWrapped = false
 ballBtn.Active = true
+ballBtn.Visible = false
+ballBtn.BorderSizePixel = 0
 ballBtn.AutoButtonColor = false
 ballBtn.Parent = screenGui
 
-Instance.new("UICorner", ballBtn).CornerRadius = UDim.new(1, 0)
+local ballTextLimit = Instance.new("UITextSizeConstraint")
+ballTextLimit.MinTextSize = 9
+ballTextLimit.MaxTextSize = 12
+ballTextLimit.Parent = ballBtn
 
-local ballStroke = Instance.new("UIStroke", ballBtn)
-ballStroke.Color = YELLOW_DARK
+local ballCorner = Instance.new("UICorner")
+ballCorner.CornerRadius = UDim.new(1,0)
+ballCorner.Parent = ballBtn
+
+local ballStroke = Instance.new("UIStroke")
+ballStroke.Color = PURPLE
 ballStroke.Thickness = 2
+ballStroke.Parent = ballBtn
 
 -- DRAG SYSTEM
-local function enableDrag(target, moveTarget)
-
+local function enableDrag(dragTarget, moveTarget)
     local dragging = false
-    local dragInput
-    local dragStart
-    local startPosition
+    local dragInput, dragStart, startPosition
 
-    target.InputBegan:Connect(function(input)
+    local function update(input)
+        local delta = input.Position - dragStart
 
+        moveTarget.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+
+    dragTarget.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
-
             dragging = true
             dragStart = input.Position
             startPosition = moveTarget.Position
@@ -687,27 +610,16 @@ local function enableDrag(target, moveTarget)
         end
     end)
 
-    target.InputChanged:Connect(function(input)
-
+    dragTarget.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement
         or input.UserInputType == Enum.UserInputType.Touch then
-
             dragInput = input
         end
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-
         if input == dragInput and dragging then
-
-            local delta = input.Position - dragStart
-
-            moveTarget.Position = UDim2.new(
-                startPosition.X.Scale,
-                startPosition.X.Offset + delta.X,
-                startPosition.Y.Scale,
-                startPosition.Y.Offset + delta.Y
-            )
+            update(input)
         end
     end)
 end
@@ -715,38 +627,134 @@ end
 enableDrag(titleBar, mainFrame)
 enableDrag(ballBtn, ballBtn)
 
--- MINIMIZE
-closeBtn.MouseButton1Click:Connect(function()
+local ballDragMoved = false
 
-    styleWindow.Visible = false
+ballBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        ballDragMoved = false
+    end
+end)
 
+ballBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch then
+        ballDragMoved = true
+    end
+end)
+
+minimizeBtn.MouseButton1Click:Connect(function()
     ballBtn.Position = UDim2.new(
         mainFrame.Position.X.Scale,
-        mainFrame.Position.X.Offset + mainFrame.AbsoluteSize.X / 2 - 26,
+        mainFrame.Position.X.Offset + (mainFrame.Size.X.Offset/2) - 25,
         mainFrame.Position.Y.Scale,
-        mainFrame.Position.Y.Offset + mainFrame.AbsoluteSize.Y / 2 - 26
+        mainFrame.Position.Y.Offset + 10
     )
 
     mainFrame.Visible = false
     ballBtn.Visible = true
 end)
 
--- RESTORE
-ballBtn.MouseButton1Click:Connect(function()
+ballBtn.MouseButton1Up:Connect(function()
+    if not ballDragMoved then
+        mainFrame.Position = UDim2.new(
+            ballBtn.Position.X.Scale,
+            ballBtn.Position.X.Offset - (mainFrame.Size.X.Offset/2) + 25,
+            ballBtn.Position.Y.Scale,
+            ballBtn.Position.Y.Offset
+        )
 
-    mainFrame.Position = UDim2.new(
-        ballBtn.Position.X.Scale,
-        ballBtn.Position.X.Offset - mainFrame.AbsoluteSize.X / 2 + 26,
-        ballBtn.Position.Y.Scale,
-        ballBtn.Position.Y.Offset - mainFrame.AbsoluteSize.Y / 2 + 26
-    )
-
-    ballBtn.Visible = false
-    mainFrame.Visible = true
+        ballBtn.Visible = false
+        mainFrame.Visible = true
+    end
 end)
 
--- INITIAL STYLE
-selectedStyle = Styles[1]
+-- TOOL CONNECTIONS
+local function setupTool(tool)
+    if not tool:IsA("Tool")
+    or tool.Name ~= GUN_TOOL_NAME
+    or connectedTools[tool] then
+        return
+    end
 
-print("[MMV] Jawrrr Recolor Scope loaded!")
-print("[MMV] Pastel Yellow Edition | " .. #Styles .. " Styles")
+    connectedTools[tool] = true
+
+    tool.Equipped:Connect(function()
+        equippedGun = tool
+
+        if CURRENT_STYLE ~= "Normal" then
+            applyToGun(tool)
+        end
+    end)
+
+    tool.Unequipped:Connect(function()
+        restoreGun(tool)
+    end)
+
+    tool.Destroying:Connect(function()
+        connectedTools[tool] = nil
+
+        if equippedGun == tool then
+            restoreGun(tool)
+        end
+    end)
+end
+
+local function setupCharacter(character)
+    for _, object in ipairs(character:GetChildren()) do
+        if object:IsA("Tool") then
+            setupTool(object)
+        end
+    end
+
+    character.ChildAdded:Connect(function(object)
+        if object:IsA("Tool") then
+            setupTool(object)
+        end
+    end)
+end
+
+local function setupBackpack()
+    local backpack = player:WaitForChild("Backpack")
+
+    for _, object in ipairs(backpack:GetChildren()) do
+        if object:IsA("Tool") then
+            setupTool(object)
+        end
+    end
+
+    backpack.ChildAdded:Connect(function(object)
+        if object:IsA("Tool") then
+            setupTool(object)
+        end
+    end)
+end
+
+if player.Character then
+    setupCharacter(player.Character)
+end
+
+player.CharacterAdded:Connect(function(character)
+    equippedGun = nil
+    table.clear(originalGunProperties)
+    setupCharacter(character)
+end)
+
+setupBackpack()
+
+-- WATCH FOR NEW SCOPE DISPLAYS
+workspace.DescendantAdded:Connect(function(object)
+    if not TARGET_NAMES[object.Name] then
+        return
+    end
+
+    task.delay(0.2, function()
+        if CURRENT_STYLE == "Normal" then
+            return
+        end
+
+        applyToAllDisplays()
+    end)
+end)
+
+print("[MMV] Recolor Scope loaded — By:Jawrrr | 45 styles.")
